@@ -226,18 +226,26 @@ class Renderer:
 
     def _heading(self, level, styled):
         color = PAL.get(f"h{level}", PAL["h6"])
-        avail = self.width - self.indent
         raw   = strip_ansi(styled)
+        pad   = " " * self.indent
+        inner = len(raw) + 2   # one space padding each side
+
+        # Box characters per level
+        boxes = {
+            1: ("╔", "╗", "╚", "╝", "═", "║"),  # double — heaviest
+            2: ("┌", "┐", "└", "┘", "─", "│"),  # single
+            3: ("╭", "╮", "╰", "╯", "─", "│"),  # rounded
+        }
+
         self._emit("\n")
-        if level == 1:
-            self._emit(f"{color}{B}{styled}{R}\n")
-            self._emit(f"{color}{'═' * min(len(raw), avail)}{R}\n\n")
-        elif level == 2:
-            self._emit(f"{color}{B}{styled}{R}\n")
-            self._emit(f"{color}{DM}{'─' * min(len(raw), avail)}{R}\n\n")
+        if level in boxes:
+            tl, tr, bl, br, h, v = boxes[level]
+            self._emit(f"{pad}{color}{tl}{h * inner}{tr}{R}\n")
+            self._emit(f"{pad}{color}{v}{R} {color}{B}{styled}{R} {color}{v}{R}\n")
+            self._emit(f"{pad}{color}{bl}{h * inner}{br}{R}\n\n")
         else:
             prefix = "#" * level + " "
-            self._emit(f"{color}{B}{prefix}{styled}{R}\n\n")
+            self._emit(f"{pad}{color}{B}{prefix}{styled}{R}\n\n")
 
     def _paragraph(self, styled):
         avail = self.width - self.indent - (4 if self.in_quote else 0)
