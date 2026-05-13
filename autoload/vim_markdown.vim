@@ -120,7 +120,7 @@ function! s:find_native_cmd() abort
     if !executable(l:py) | continue | endif
     let l:check = system(l:py . ' -c "import markdown_it" 2>/dev/null')
     if v:shell_error == 0
-      return l:py . ' ' . shellescape(l:script)
+      return l:py
     endif
   endfor
   return ''
@@ -169,8 +169,8 @@ endfunction
 
 function! s:build_cmd(prev, bin, file) abort
   if a:prev ==# 'native'
-    " bin is 'python3.x /path/to/mdrender' — split for termopen
-    return split(a:bin) + ['--no-pager', a:file]
+    " bin is just the python executable; script path is resolved separately
+    return [a:bin, s:plugin_root . '/bin/mdrender', '--no-pager', a:file]
   endif
   return [a:bin, a:file]
 endfunction
