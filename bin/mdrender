@@ -303,7 +303,7 @@ def main():
         sys.stderr.write(f"mdrender: {e}\n")
         sys.exit(1)
 
-    tokens  = MarkdownIt("gfm-like").parse(source)
+    tokens  = MarkdownIt("gfm-like", {"linkify": False}).parse(source)
     width   = min(shutil.get_terminal_size((100, 40)).columns, 100)
     output  = Renderer(width).render(tokens)
 
