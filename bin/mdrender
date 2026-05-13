@@ -319,7 +319,7 @@ def main():
     out_lines  = output.count("\n")
 
     if not no_pager and sys.stdout.isatty() and out_lines > term_lines - 2:
-        pager = subprocess.Popen(["less", "-R"], stdin=subprocess.PIPE)
+        pager = subprocess.Popen(["less", "-R", "--mouse", "--wheel-lines=3"], stdin=subprocess.PIPE)
         pager.communicate(output.encode("utf-8"))
     else:
         sys.stdout.write(output)
