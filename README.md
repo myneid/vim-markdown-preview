@@ -1,23 +1,35 @@
 # vim-markdown
 
-A lightweight Vim/Neovim plugin to preview Markdown files. Toggle between edit and preview with a single keymap. Supports three backends: **frogmouth** (default), **glow**, and **pandoc** (browser).
+A lightweight Vim/Neovim plugin to preview Markdown files. Toggle between edit and preview with a single keymap. Supports four backends: **native** (default), **frogmouth**, **glow**, and **pandoc** (browser).
 
 ## Requirements
 
 - Vim 8+ or Neovim
-- At least one preview backend (see below)
+- The native backend requires Python 3 with `markdown-it-py` (see below)
 
 ## Backends
 
-| Backend | Type | Install |
-|---------|------|---------|
-| **frogmouth** *(default)* | Interactive TUI browser | `pip install frogmouth` |
+| Backend | Type | Requirement |
+|---------|------|-------------|
+| **native** *(default)* | ANSI renderer in a terminal split | `pip install markdown-it-py` |
+| **frogmouth** | Interactive TUI browser | `pip install frogmouth` |
 | **glow** | Terminal pager | `brew install glow` |
 | **pandoc** | Browser (HTML) | `brew install pandoc` |
 
+**native** — a built-in renderer that converts Markdown to styled terminal output using 24-bit ANSI colour codes. Opens in a vertical split. No external tool needed beyond Python and `markdown-it-py`.
+
+- H1 in sky blue with `═══` underline decoration
+- H2 in mint green with `───` underline decoration
+- H3–H6 each with a distinct colour and `###` prefix
+- Bold, italic, inline code, strikethrough, and links styled inline
+- Code blocks on a dark background with a language label
+- Blockquotes with a `│` bar and dimmed italic text
+- Coloured `•` bullets and muted numbered list markers
+- Re-renders automatically on every save
+
 **frogmouth** — a full terminal Markdown browser. Opens in a vertical split, navigates links, and watches the file for changes automatically.
 
-**glow** — renders Markdown with colors and structure in a terminal pager inside a vertical split. Re-renders on every save.
+**glow** — renders Markdown with colours and structure in a terminal split. Re-renders on every save.
 
 **pandoc** — converts the file to styled HTML and opens it in your default browser. Re-generates on every save; you refresh the tab manually.
 
@@ -27,6 +39,12 @@ A lightweight Vim/Neovim plugin to preview Markdown files. Toggle between edit a
 
 ```vim
 Plug 'myneid/vim-markdown'
+```
+
+Then install the Python dependency:
+
+```sh
+pip install markdown-it-py
 ```
 
 ### lazy.nvim
@@ -58,8 +76,11 @@ The keymap is only active in `filetype=markdown` buffers.
 ## Configuration
 
 ```vim
-" Choose your backend (default: 'frogmouth')
-let g:vim_markdown_previewer = 'frogmouth'   " or 'glow' or 'pandoc'
+" Choose your backend (default: 'native')
+let g:vim_markdown_previewer = 'native'      " built-in ANSI renderer
+let g:vim_markdown_previewer = 'frogmouth'   " interactive TUI browser
+let g:vim_markdown_previewer = 'glow'        " terminal pager
+let g:vim_markdown_previewer = 'pandoc'      " browser (HTML)
 
 " Override the toggle keymap (default: <leader>mp)
 let g:vim_markdown_preview_key = '<F5>'
@@ -69,6 +90,7 @@ let g:vim_markdown_preview_key = '<F5>'
 
 | Backend | On save |
 |---------|---------|
+| native | Preview split closes and reopens with updated render |
 | frogmouth | Automatic — watches the file itself |
 | glow | Preview split closes and reopens with updated render |
 | pandoc | HTML is regenerated — press `⌘R` / `F5` in the browser |
@@ -78,4 +100,4 @@ let g:vim_markdown_preview_key = '<F5>'
 - The preview reflects the **saved** file. Run `:w` before toggling.
 - The file must already exist on disk (not a new unnamed buffer).
 - The pandoc browser tab does not auto-refresh — you refresh it manually.
-- frogmouth and glow require a terminal that supports ANSI colours.
+- All terminal backends require a terminal that supports 24-bit ANSI colour.
