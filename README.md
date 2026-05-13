@@ -86,18 +86,26 @@ let g:vim_markdown_previewer = 'pandoc'      " browser (HTML)
 let g:vim_markdown_preview_key = '<F5>'
 ```
 
+## Switching between edit and preview
+
+The preview takes over the current window — no split. Press `<leader>mp` to enter preview mode; press `q` to exit the previewer and return to editing at the same cursor position.
+
+| Backend | How to return to editing |
+|---------|--------------------------|
+| native | Press `q` to quit the pager |
+| glow | Press `q` to quit the pager |
+| frogmouth | Press `q` to quit frogmouth |
+| pandoc | Stays in the browser — edit mode is unaffected |
+
 ## Refresh behaviour
 
 | Backend | On save |
 |---------|---------|
-| native | Preview split closes and reopens with updated render |
-| frogmouth | Automatic — watches the file itself |
-| glow | Preview split closes and reopens with updated render |
+| native / glow / frogmouth | Toggle off, save, toggle on again |
 | pandoc | HTML is regenerated — press `⌘R` / `F5` in the browser |
 
 ## Limitations
 
 - The preview reflects the **saved** file. Run `:w` before toggling.
 - The file must already exist on disk (not a new unnamed buffer).
-- The pandoc browser tab does not auto-refresh — you refresh it manually.
 - All terminal backends require a terminal that supports 24-bit ANSI colour.

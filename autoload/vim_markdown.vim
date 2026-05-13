@@ -2,6 +2,9 @@ let s:plugin_root   = expand('<sfile>:p:h:h')
 let s:active        = 0
 let s:html          = ''
 let s:preview_bufnr = -1
+let s:preview_job   = -1   " Neovim job id
+let s:md_bufnr      = -1   " markdown buffer to return to
+let s:md_cursor     = []
 let s:augroup       = 'VimMarkdownRefresh'
 
 let s:install_hints = {
@@ -20,7 +23,7 @@ endfunction
 function! vim_markdown#start() abort
   if &filetype !=# 'markdown'
     echohl WarningMsg
-    echo 'vim-markdown: filetype is "' . &filetype . '", expected "markdown" — try :set ft=markdown'
+    echo 'vim-markdown: filetype is "' . &filetype . '" — try :set ft=markdown'
     echohl None
     return
   endif
@@ -30,7 +33,6 @@ function! vim_markdown#start() abort
   endif
 
   let l:prev = s:previewer()
-
   if l:prev ==# 'pandoc'
     call s:pandoc_start()
   else
@@ -39,20 +41,31 @@ function! vim_markdown#start() abort
 endfunction
 
 function! vim_markdown#stop() abort
-  execute 'augroup ' . s:augroup
-    autocmd!
-  execute 'augroup END'
+  execute 'augroup ' . s:augroup | autocmd! | execute 'augroup END'
 
-  if s:preview_bufnr > 0 && bufexists(s:preview_bufnr)
-    execute 'bdelete! ' . s:preview_bufnr
-    let s:preview_bufnr = -1
+  " Kill the terminal job if still running
+  if has('nvim') && s:preview_job > 0
+    try | call jobstop(s:preview_job) | catch | endtry
+    let s:preview_job = -1
+  endif
+
+  let l:pbuf    = s:preview_bufnr
+  let s:preview_bufnr = -1
+  let s:active  = 0
+
+  " Return to the markdown buffer first, then delete the preview buffer
+  if s:md_bufnr > 0 && bufexists(s:md_bufnr)
+    execute 'buffer ' . s:md_bufnr
+    if !empty(s:md_cursor) | call setpos('.', s:md_cursor) | endif
+  endif
+  let s:md_bufnr = -1
+
+  if l:pbuf > 0 && bufexists(l:pbuf)
+    execute 'bdelete! ' . l:pbuf
   endif
   if !empty(s:html) && filereadable(s:html)
-    call delete(s:html)
-    let s:html = ''
+    call delete(s:html) | let s:html = ''
   endif
-  let s:active = 0
-  echo 'vim-markdown: preview stopped'
 endfunction
 
 function! vim_markdown#refresh() abort
@@ -65,10 +78,8 @@ function! vim_markdown#refresh() abort
     else
       echo 'vim-markdown: refreshed — reload browser tab'
     endif
-  elseif l:prev ==# 'glow' || l:prev ==# 'native'
-    call s:terminal_reopen(l:prev)
   endif
-  " frogmouth watches the file itself — nothing to do
+  " terminal backends: user re-toggles manually after saving
 endfunction
 
 function! vim_markdown#debug() abort
@@ -79,13 +90,10 @@ function! vim_markdown#debug() abort
   echo 'file       : ' . expand('%:p')
   echo 'file exists: ' . filereadable(expand('%:p'))
   echo 'active     : ' . s:active
+  echo 'md_bufnr   : ' . s:md_bufnr
+  echo 'preview_buf: ' . s:preview_bufnr
   let l:bin = s:find_binary(l:prev)
   echo l:prev . ' bin  : ' . (empty(l:bin) ? 'NOT FOUND' : l:bin)
-  if l:prev ==# 'pandoc'
-    echo 'html path  : ' . s:html
-  else
-    echo 'preview buf: ' . s:preview_bufnr
-  endif
   if l:prev ==# 'native'
     echo 'script     : ' . s:plugin_root . '/bin/mdrender'
   endif
@@ -112,21 +120,16 @@ endfunction
 
 function! s:find_native_cmd() abort
   let l:script = s:plugin_root . '/bin/mdrender'
-  if !filereadable(l:script)
-    return ''
-  endif
-  " Find a python3 that has markdown-it-py
+  if !filereadable(l:script) | return '' | endif
   for l:py in ['python3.11', 'python3.12', 'python3.10', 'python3', 'python']
     if !executable(l:py) | continue | endif
-    let l:check = system(l:py . ' -c "import markdown_it" 2>/dev/null')
-    if v:shell_error == 0
-      return l:py
-    endif
+    call system(l:py . ' -c "import markdown_it" 2>/dev/null')
+    if v:shell_error == 0 | return l:py | endif
   endfor
   return ''
 endfunction
 
-" ── private: terminal previewers (frogmouth / glow) ───────────────────────────
+" ── private: terminal previewers ──────────────────────────────────────────────
 
 function! s:terminal_start(prev) abort
   let l:bin = s:find_binary(a:prev)
@@ -139,70 +142,69 @@ function! s:terminal_start(prev) abort
     return
   endif
 
+  " Remember where to return
+  let s:md_bufnr  = bufnr('%')
+  let s:md_cursor = getpos('.')
+
   let l:file = expand('%:p')
   let l:cmd  = s:build_cmd(a:prev, l:bin, l:file)
-  call s:open_terminal_split(l:cmd)
-
-  " native and glow are static renders — refresh on save
-  " frogmouth watches the file itself
-  if a:prev ==# 'glow' || a:prev ==# 'native'
-    execute 'augroup ' . s:augroup
-      autocmd!
-      autocmd BufWritePost <buffer> call vim_markdown#refresh()
-    execute 'augroup END'
-  endif
-
+  call s:open_terminal(l:cmd)
   let s:active = 1
-  echo 'vim-markdown: ' . a:prev . ' preview open'
-endfunction
-
-function! s:terminal_reopen(prev) abort
-  if s:preview_bufnr > 0 && bufexists(s:preview_bufnr)
-    execute 'bdelete! ' . s:preview_bufnr
-    let s:preview_bufnr = -1
-  endif
-  let l:bin  = s:find_binary(a:prev)
-  let l:file = expand('%:p')
-  let l:cmd  = s:build_cmd(a:prev, l:bin, l:file)
-  call s:open_terminal_split(l:cmd)
 endfunction
 
 function! s:build_cmd(prev, bin, file) abort
   if a:prev ==# 'native'
-    " bin is just the python executable; script path is resolved separately
-    return [a:bin, s:plugin_root . '/bin/mdrender', '--no-pager', a:file]
+    " No --no-pager: let less run so 'q' exits cleanly back to the buffer
+    return [a:bin, s:plugin_root . '/bin/mdrender', a:file]
   endif
   return [a:bin, a:file]
 endfunction
 
-function! s:open_terminal_split(cmd) abort
-  vsplit
+function! s:open_terminal(cmd) abort
   if has('nvim')
     enew
     let s:preview_bufnr = bufnr('%')
-    call termopen(a:cmd, {'on_exit': function('s:on_terminal_exit')})
+    let s:preview_job   = termopen(a:cmd, {'on_exit': function('s:on_exit_nvim')})
     setlocal nobuflisted bufhidden=wipe
+    " mapping so <leader>mp works in terminal-normal mode too
+    let l:key = get(g:, 'vim_markdown_preview_key', '<leader>mp')
+    execute 'nnoremap <buffer> <silent> ' . l:key . ' :MarkdownPreviewStop<CR>'
+    startinsert
   else
     let s:preview_bufnr = term_start(a:cmd, {
           \ 'curwin':    1,
           \ 'norestore': 1,
-          \ 'exit_cb':   function('s:on_terminal_exit_vim'),
+          \ 'exit_cb':   function('s:on_exit_vim'),
           \ })
     call setbufvar(s:preview_bufnr, '&buflisted', 0)
   endif
-  wincmd p
 endfunction
 
-function! s:on_terminal_exit(job_id, code, event) abort
-  " Neovim callback — clean up state when the previewer exits
-  let s:active        = 0
-  let s:preview_bufnr = -1
+function! s:on_exit_nvim(job_id, code, event) abort
+  let s:active      = 0
+  let s:preview_job = -1
+  " Defer buffer ops — unsafe to switch buffers directly in a job callback
+  call timer_start(0, function('s:return_to_md'))
 endfunction
 
-function! s:on_terminal_exit_vim(job, status) abort
-  " Vim callback
-  let s:active        = 0
+function! s:on_exit_vim(job, status) abort
+  let s:active = 0
+  call timer_start(0, function('s:return_to_md'))
+endfunction
+
+function! s:return_to_md(timer) abort
+  let l:pbuf      = s:preview_bufnr
   let s:preview_bufnr = -1
+
+  if s:md_bufnr > 0 && bufexists(s:md_bufnr)
+    execute 'buffer ' . s:md_bufnr
+    if !empty(s:md_cursor) | call setpos('.', s:md_cursor) | endif
+  endif
+  let s:md_bufnr = -1
+
+  if l:pbuf > 0 && bufexists(l:pbuf)
+    execute 'bdelete! ' . l:pbuf
+  endif
 endfunction
 
 " ── private: pandoc (browser) ─────────────────────────────────────────────────
