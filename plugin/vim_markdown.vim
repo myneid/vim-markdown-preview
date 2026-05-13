@@ -8,6 +8,7 @@ endif
 command! MarkdownPreview       call vim_markdown#start()
 command! MarkdownPreviewStop   call vim_markdown#stop()
 command! MarkdownPreviewToggle call vim_markdown#toggle()
+command! MarkdownPreviewDebug  call vim_markdown#debug()
 
 augroup VimMarkdownFt
   autocmd!

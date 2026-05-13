@@ -10,16 +10,35 @@ endfunction
 
 function! vim_markdown#start() abort
   if &filetype !=# 'markdown'
-    echohl WarningMsg | echo 'vim-markdown: not a markdown buffer' | echohl None
+    echohl WarningMsg
+    echo 'vim-markdown: filetype is "' . &filetype . '", expected "markdown"'
+    echohl None
     return
   endif
-  if !executable('pandoc')
-    echohl ErrorMsg | echo 'vim-markdown: pandoc not found in PATH' | echohl None
+
+  let l:pandoc = s:find_pandoc()
+  if empty(l:pandoc)
+    echohl ErrorMsg
+    echo 'vim-markdown: pandoc not found (checked PATH and /opt/homebrew/bin)'
+    echohl None
+    return
+  endif
+
+  if empty(expand('%:p')) || !filereadable(expand('%:p'))
+    echohl WarningMsg
+    echo 'vim-markdown: save the file first'
+    echohl None
     return
   endif
 
   let s:html = tempname() . '.html'
-  call s:render()
+  let l:err  = s:render(l:pandoc)
+
+  if !empty(l:err)
+    echohl ErrorMsg | echo 'vim-markdown: ' . l:err | echohl None
+    return
+  endif
+
   call s:open_browser(s:html)
 
   execute 'augroup ' . s:augroup
@@ -28,7 +47,7 @@ function! vim_markdown#start() abort
   execute 'augroup END'
 
   let s:active = 1
-  echo 'vim-markdown: preview open (auto-refreshes on save)'
+  echo 'vim-markdown: preview open — save to refresh'
 endfunction
 
 function! vim_markdown#stop() abort
@@ -46,29 +65,68 @@ endfunction
 
 function! vim_markdown#refresh() abort
   if !s:active | return | endif
-  call s:render()
-  echo 'vim-markdown: refreshed'
+  let l:pandoc = s:find_pandoc()
+  let l:err    = s:render(l:pandoc)
+  if !empty(l:err)
+    echohl ErrorMsg | echo 'vim-markdown: ' . l:err | echohl None
+  else
+    echo 'vim-markdown: refreshed — reload browser tab'
+  endif
+endfunction
+
+function! vim_markdown#debug() abort
+  echo '=== vim-markdown debug ==='
+  echo 'filetype   : ' . &filetype
+  echo 'file       : ' . expand('%:p')
+  echo 'file exists: ' . filereadable(expand('%:p'))
+  echo 'active     : ' . s:active
+  echo 'html path  : ' . s:html
+  let l:pandoc = s:find_pandoc()
+  echo 'pandoc     : ' . (empty(l:pandoc) ? 'NOT FOUND' : l:pandoc)
+  echo 'shell      : ' . &shell
+  echo 'PATH       : ' . $PATH
 endfunction
 
 " ── private ───────────────────────────────────────────────────────────────────
 
-function! s:render() abort
-  let l:src     = expand('%:p')
-  let l:css     = tempname() . '.css'
-  let l:title   = fnamemodify(l:src, ':t:r')
+function! s:find_pandoc() abort
+  if executable('pandoc')
+    return 'pandoc'
+  endif
+  " Homebrew on Apple Silicon puts binaries in /opt/homebrew/bin
+  if executable('/opt/homebrew/bin/pandoc')
+    return '/opt/homebrew/bin/pandoc'
+  endif
+  if executable('/usr/local/bin/pandoc')
+    return '/usr/local/bin/pandoc'
+  endif
+  return ''
+endfunction
+
+function! s:render(pandoc) abort
+  let l:src   = expand('%:p')
+  let l:css   = tempname() . '.css'
+  let l:title = fnamemodify(l:src, ':t:r')
 
   call writefile(split(s:css(), "\n"), l:css)
 
-  let l:cmd = printf(
-        \ 'pandoc --standalone --embed-resources --from=gfm --to=html5'
-        \ . ' --metadata title=%s --css=%s -o %s %s',
-        \ shellescape(l:title),
-        \ shellescape(l:css),
-        \ shellescape(s:html),
-        \ shellescape(l:src))
+  let l:cmd = a:pandoc
+        \ . ' --standalone --embed-resources --from=gfm --to=html5'
+        \ . ' --metadata title=' . shellescape(l:title)
+        \ . ' --css=' . shellescape(l:css)
+        \ . ' -o ' . shellescape(s:html)
+        \ . ' ' . shellescape(l:src)
 
-  call system(l:cmd)
+  let l:out = system(l:cmd)
   call delete(l:css)
+
+  if v:shell_error != 0
+    return 'pandoc failed (exit ' . v:shell_error . '): ' . l:out
+  endif
+  if !filereadable(s:html)
+    return 'pandoc ran but did not produce output'
+  endif
+  return ''
 endfunction
 
 function! s:open_browser(path) abort
