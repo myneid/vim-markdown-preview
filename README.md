@@ -1,39 +1,41 @@
 # vim-markdown
 
-A lightweight Vim/Neovim plugin to preview Markdown files in the browser, rendered with GitHub-style CSS. Toggle the preview on and off with a single keymap — the HTML updates automatically every time you save.
+A lightweight Vim/Neovim plugin to preview Markdown files. Toggle between edit and preview with a single keymap. Supports three backends: **frogmouth** (default), **glow**, and **pandoc** (browser).
 
 ## Requirements
 
 - Vim 8+ or Neovim
-- [pandoc](https://pandoc.org/installing.html) in your `PATH`
+- At least one preview backend (see below)
 
-On macOS:
+## Backends
 
-```sh
-brew install pandoc
-```
+| Backend | Type | Install |
+|---------|------|---------|
+| **frogmouth** *(default)* | Interactive TUI browser | `pip install frogmouth` |
+| **glow** | Terminal pager | `brew install glow` |
+| **pandoc** | Browser (HTML) | `brew install pandoc` |
+
+**frogmouth** — a full terminal Markdown browser. Opens in a vertical split, navigates links, and watches the file for changes automatically.
+
+**glow** — renders Markdown with colors and structure in a terminal pager inside a vertical split. Re-renders on every save.
+
+**pandoc** — converts the file to styled HTML and opens it in your default browser. Re-generates on every save; you refresh the tab manually.
 
 ## Installation
 
 ### vim-plug
 
 ```vim
-Plug '/path/to/vim-markdown'         " local
-" or after pushing to GitHub:
-Plug 'yourname/vim-markdown'
+Plug 'myneid/vim-markdown'
 ```
 
 ### lazy.nvim
 
 ```lua
-{ dir = "/path/to/vim-markdown" }
--- or after pushing to GitHub:
-{ "yourname/vim-markdown" }
+{ "myneid/vim-markdown" }
 ```
 
 ### Manual
-
-Add this to your `~/.vimrc` or `init.vim`:
 
 ```vim
 set runtimepath+=/path/to/vim-markdown
@@ -49,51 +51,31 @@ Open any Markdown file, then:
 | Open preview | `:MarkdownPreview` |
 | Close preview | `:MarkdownPreviewStop` |
 | Toggle preview | `:MarkdownPreviewToggle` |
+| Show debug info | `:MarkdownPreviewDebug` |
 
 The keymap is only active in `filetype=markdown` buffers.
 
-**Workflow:**
-1. Press `<leader>mp` — the rendered page opens in your default browser.
-2. Edit your file normally in Vim.
-3. Save (`:w`) — the HTML regenerates automatically.
-4. Refresh the browser tab to see the update (`⌘R` / `F5`).
-5. Press `<leader>mp` again to stop the preview and clean up the temp file.
-
 ## Configuration
 
-Override the default keymap before the plugin loads:
-
 ```vim
+" Choose your backend (default: 'frogmouth')
+let g:vim_markdown_previewer = 'frogmouth'   " or 'glow' or 'pandoc'
+
+" Override the toggle keymap (default: <leader>mp)
 let g:vim_markdown_preview_key = '<F5>'
 ```
 
-## What gets rendered
+## Refresh behaviour
 
-The plugin uses pandoc with GitHub-Flavored Markdown (`--from=gfm`) so everything GFM supports is rendered correctly:
-
-- Headings, bold, italic, strikethrough
-- Fenced code blocks (with language tag)
-- Tables
-- Blockquotes
-- Ordered and unordered lists, task lists
-- Links and images
-- Horizontal rules
-- Inline HTML
-
-The output is a fully self-contained `.html` file — no network requests, no external dependencies at view time.
-
-## Styling
-
-The preview uses an embedded GitHub-style CSS with automatic dark mode support (`prefers-color-scheme: dark`). No configuration needed — it follows your system appearance.
-
-## How it works
-
-1. On toggle-on: pandoc converts the current buffer's file to a standalone HTML file in `/tmp`, then opens it with the system default browser (`open` on macOS, `xdg-open` on Linux, `start` on Windows).
-2. A `BufWritePost` autocommand is registered on the buffer — every save rerenders the HTML file in place.
-3. On toggle-off: the autocommand is removed and the temp file is deleted.
+| Backend | On save |
+|---------|---------|
+| frogmouth | Automatic — watches the file itself |
+| glow | Preview split closes and reopens with updated render |
+| pandoc | HTML is regenerated — press `⌘R` / `F5` in the browser |
 
 ## Limitations
 
-- The browser tab does not auto-refresh — you need to press `⌘R` / `F5` after saving.
-- The preview reflects the **saved** file, not the unsaved buffer.
-- Requires the file to already be saved to disk (not a new unnamed buffer).
+- The preview reflects the **saved** file. Run `:w` before toggling.
+- The file must already exist on disk (not a new unnamed buffer).
+- The pandoc browser tab does not auto-refresh — you refresh it manually.
+- frogmouth and glow require a terminal that supports ANSI colours.

@@ -1,6 +1,13 @@
-let s:active   = 0
-let s:html     = ''
-let s:augroup  = 'VimMarkdownRefresh'
+let s:active        = 0
+let s:html          = ''
+let s:preview_bufnr = -1
+let s:augroup       = 'VimMarkdownRefresh'
+
+let s:install_hints = {
+      \ 'frogmouth': 'pip install frogmouth',
+      \ 'glow':      'brew install glow',
+      \ 'pandoc':    'brew install pandoc',
+      \ }
 
 " ── public ────────────────────────────────────────────────────────────────────
 
@@ -11,29 +18,180 @@ endfunction
 function! vim_markdown#start() abort
   if &filetype !=# 'markdown'
     echohl WarningMsg
-    echo 'vim-markdown: filetype is "' . &filetype . '", expected "markdown"'
+    echo 'vim-markdown: filetype is "' . &filetype . '", expected "markdown" — try :set ft=markdown'
     echohl None
     return
   endif
-
-  let l:pandoc = s:find_pandoc()
-  if empty(l:pandoc)
-    echohl ErrorMsg
-    echo 'vim-markdown: pandoc not found (checked PATH and /opt/homebrew/bin)'
-    echohl None
-    return
-  endif
-
   if empty(expand('%:p')) || !filereadable(expand('%:p'))
-    echohl WarningMsg
-    echo 'vim-markdown: save the file first'
+    echohl WarningMsg | echo 'vim-markdown: save the file first' | echohl None
+    return
+  endif
+
+  let l:prev = s:previewer()
+
+  if l:prev ==# 'pandoc'
+    call s:pandoc_start()
+  else
+    call s:terminal_start(l:prev)
+  endif
+endfunction
+
+function! vim_markdown#stop() abort
+  execute 'augroup ' . s:augroup
+    autocmd!
+  execute 'augroup END'
+
+  if s:preview_bufnr > 0 && bufexists(s:preview_bufnr)
+    execute 'bdelete! ' . s:preview_bufnr
+    let s:preview_bufnr = -1
+  endif
+  if !empty(s:html) && filereadable(s:html)
+    call delete(s:html)
+    let s:html = ''
+  endif
+  let s:active = 0
+  echo 'vim-markdown: preview stopped'
+endfunction
+
+function! vim_markdown#refresh() abort
+  if !s:active | return | endif
+  let l:prev = s:previewer()
+  if l:prev ==# 'pandoc'
+    let l:err = s:pandoc_render(s:find_binary('pandoc'))
+    if !empty(l:err)
+      echohl ErrorMsg | echo 'vim-markdown: ' . l:err | echohl None
+    else
+      echo 'vim-markdown: refreshed — reload browser tab'
+    endif
+  elseif l:prev ==# 'glow'
+    call s:terminal_reopen(l:prev)
+  endif
+  " frogmouth watches the file itself — nothing to do
+endfunction
+
+function! vim_markdown#debug() abort
+  let l:prev = s:previewer()
+  echo '=== vim-markdown debug ==='
+  echo 'previewer  : ' . l:prev
+  echo 'filetype   : ' . &filetype
+  echo 'file       : ' . expand('%:p')
+  echo 'file exists: ' . filereadable(expand('%:p'))
+  echo 'active     : ' . s:active
+  let l:bin = s:find_binary(l:prev)
+  echo l:prev . ' bin  : ' . (empty(l:bin) ? 'NOT FOUND' : l:bin)
+  if l:prev ==# 'pandoc'
+    echo 'html path  : ' . s:html
+  else
+    echo 'preview buf: ' . s:preview_bufnr
+  endif
+  echo 'PATH       : ' . $PATH
+endfunction
+
+" ── private: routing ──────────────────────────────────────────────────────────
+
+function! s:previewer() abort
+  return get(g:, 'vim_markdown_previewer', 'frogmouth')
+endfunction
+
+function! s:find_binary(name) abort
+  if executable(a:name) | return a:name | endif
+  for l:prefix in ['/opt/homebrew/bin', '/usr/local/bin', expand('~/.local/bin')]
+    let l:path = l:prefix . '/' . a:name
+    if executable(l:path) | return l:path | endif
+  endfor
+  " frogmouth may be installed as a Python script
+  if a:name ==# 'frogmouth'
+    for l:p in [expand('~/.local/bin/frogmouth'), '/usr/local/bin/frogmouth']
+      if executable(l:p) | return l:p | endif
+    endfor
+  endif
+  return ''
+endfunction
+
+" ── private: terminal previewers (frogmouth / glow) ───────────────────────────
+
+function! s:terminal_start(prev) abort
+  let l:bin = s:find_binary(a:prev)
+  if empty(l:bin)
+    echohl ErrorMsg
+    echo 'vim-markdown: ' . a:prev . ' not found'
+    let l:hint = get(s:install_hints, a:prev, '')
+    if !empty(l:hint) | echo '  install with: ' . l:hint | endif
+    echohl None
+    return
+  endif
+
+  let l:file = expand('%:p')
+  let l:cmd  = a:prev ==# 'glow' ? [l:bin, '-p', l:file] : [l:bin, l:file]
+  call s:open_terminal_split(l:cmd)
+
+  " glow is a static render — refresh it on save
+  " frogmouth watches the file itself
+  if a:prev ==# 'glow'
+    execute 'augroup ' . s:augroup
+      autocmd!
+      autocmd BufWritePost <buffer> call vim_markdown#refresh()
+    execute 'augroup END'
+  endif
+
+  let s:active = 1
+  echo 'vim-markdown: ' . a:prev . ' preview open'
+endfunction
+
+function! s:terminal_reopen(prev) abort
+  if s:preview_bufnr > 0 && bufexists(s:preview_bufnr)
+    execute 'bdelete! ' . s:preview_bufnr
+    let s:preview_bufnr = -1
+  endif
+  let l:bin  = s:find_binary(a:prev)
+  let l:file = expand('%:p')
+  let l:cmd  = a:prev ==# 'glow' ? [l:bin, '-p', l:file] : [l:bin, l:file]
+  call s:open_terminal_split(l:cmd)
+endfunction
+
+function! s:open_terminal_split(cmd) abort
+  vsplit
+  if has('nvim')
+    enew
+    let s:preview_bufnr = bufnr('%')
+    call termopen(a:cmd, {'on_exit': function('s:on_terminal_exit')})
+    setlocal nobuflisted bufhidden=wipe
+  else
+    let s:preview_bufnr = term_start(a:cmd, {
+          \ 'curwin':    1,
+          \ 'norestore': 1,
+          \ 'exit_cb':   function('s:on_terminal_exit_vim'),
+          \ })
+    call setbufvar(s:preview_bufnr, '&buflisted', 0)
+  endif
+  wincmd p
+endfunction
+
+function! s:on_terminal_exit(job_id, code, event) abort
+  " Neovim callback — clean up state when the previewer exits
+  let s:active        = 0
+  let s:preview_bufnr = -1
+endfunction
+
+function! s:on_terminal_exit_vim(job, status) abort
+  " Vim callback
+  let s:active        = 0
+  let s:preview_bufnr = -1
+endfunction
+
+" ── private: pandoc (browser) ─────────────────────────────────────────────────
+
+function! s:pandoc_start() abort
+  let l:bin = s:find_binary('pandoc')
+  if empty(l:bin)
+    echohl ErrorMsg
+    echo 'vim-markdown: pandoc not found — install with: brew install pandoc'
     echohl None
     return
   endif
 
   let s:html = tempname() . '.html'
-  let l:err  = s:render(l:pandoc)
-
+  let l:err  = s:pandoc_render(l:bin)
   if !empty(l:err)
     echohl ErrorMsg | echo 'vim-markdown: ' . l:err | echohl None
     return
@@ -47,70 +205,17 @@ function! vim_markdown#start() abort
   execute 'augroup END'
 
   let s:active = 1
-  echo 'vim-markdown: preview open — save to refresh'
+  echo 'vim-markdown: browser preview open — save to refresh'
 endfunction
 
-function! vim_markdown#stop() abort
-  execute 'augroup ' . s:augroup
-    autocmd!
-  execute 'augroup END'
-
-  if !empty(s:html) && filereadable(s:html)
-    call delete(s:html)
-  endif
-  let s:html   = ''
-  let s:active = 0
-  echo 'vim-markdown: preview stopped'
-endfunction
-
-function! vim_markdown#refresh() abort
-  if !s:active | return | endif
-  let l:pandoc = s:find_pandoc()
-  let l:err    = s:render(l:pandoc)
-  if !empty(l:err)
-    echohl ErrorMsg | echo 'vim-markdown: ' . l:err | echohl None
-  else
-    echo 'vim-markdown: refreshed — reload browser tab'
-  endif
-endfunction
-
-function! vim_markdown#debug() abort
-  echo '=== vim-markdown debug ==='
-  echo 'filetype   : ' . &filetype
-  echo 'file       : ' . expand('%:p')
-  echo 'file exists: ' . filereadable(expand('%:p'))
-  echo 'active     : ' . s:active
-  echo 'html path  : ' . s:html
-  let l:pandoc = s:find_pandoc()
-  echo 'pandoc     : ' . (empty(l:pandoc) ? 'NOT FOUND' : l:pandoc)
-  echo 'shell      : ' . &shell
-  echo 'PATH       : ' . $PATH
-endfunction
-
-" ── private ───────────────────────────────────────────────────────────────────
-
-function! s:find_pandoc() abort
-  if executable('pandoc')
-    return 'pandoc'
-  endif
-  " Homebrew on Apple Silicon puts binaries in /opt/homebrew/bin
-  if executable('/opt/homebrew/bin/pandoc')
-    return '/opt/homebrew/bin/pandoc'
-  endif
-  if executable('/usr/local/bin/pandoc')
-    return '/usr/local/bin/pandoc'
-  endif
-  return ''
-endfunction
-
-function! s:render(pandoc) abort
+function! s:pandoc_render(bin) abort
   let l:src   = expand('%:p')
   let l:css   = tempname() . '.css'
   let l:title = fnamemodify(l:src, ':t:r')
 
   call writefile(split(s:css(), "\n"), l:css)
 
-  let l:cmd = a:pandoc
+  let l:cmd = a:bin
         \ . ' --standalone --embed-resources --from=gfm --to=html5'
         \ . ' --metadata title=' . shellescape(l:title)
         \ . ' --css=' . shellescape(l:css)
@@ -124,7 +229,7 @@ function! s:render(pandoc) abort
     return 'pandoc failed (exit ' . v:shell_error . '): ' . l:out
   endif
   if !filereadable(s:html)
-    return 'pandoc ran but did not produce output'
+    return 'pandoc ran but produced no output'
   endif
   return ''
 endfunction
