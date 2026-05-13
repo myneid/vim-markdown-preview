@@ -1,3 +1,4 @@
+let s:plugin_root   = expand('<sfile>:p:h:h')
 let s:active        = 0
 let s:html          = ''
 let s:preview_bufnr = -1
@@ -7,6 +8,7 @@ let s:install_hints = {
       \ 'frogmouth': 'pip install frogmouth',
       \ 'glow':      'brew install glow',
       \ 'pandoc':    'brew install pandoc',
+      \ 'native':    '(built-in — requires: pip install markdown-it-py)',
       \ }
 
 " ── public ────────────────────────────────────────────────────────────────────
@@ -63,7 +65,7 @@ function! vim_markdown#refresh() abort
     else
       echo 'vim-markdown: refreshed — reload browser tab'
     endif
-  elseif l:prev ==# 'glow'
+  elseif l:prev ==# 'glow' || l:prev ==# 'native'
     call s:terminal_reopen(l:prev)
   endif
   " frogmouth watches the file itself — nothing to do
@@ -84,27 +86,43 @@ function! vim_markdown#debug() abort
   else
     echo 'preview buf: ' . s:preview_bufnr
   endif
+  if l:prev ==# 'native'
+    echo 'script     : ' . s:plugin_root . '/bin/mdrender'
+  endif
   echo 'PATH       : ' . $PATH
 endfunction
 
 " ── private: routing ──────────────────────────────────────────────────────────
 
 function! s:previewer() abort
-  return get(g:, 'vim_markdown_previewer', 'frogmouth')
+  return get(g:, 'vim_markdown_previewer', 'native')
 endfunction
 
 function! s:find_binary(name) abort
+  if a:name ==# 'native'
+    return s:find_native_cmd()
+  endif
   if executable(a:name) | return a:name | endif
   for l:prefix in ['/opt/homebrew/bin', '/usr/local/bin', expand('~/.local/bin')]
     let l:path = l:prefix . '/' . a:name
     if executable(l:path) | return l:path | endif
   endfor
-  " frogmouth may be installed as a Python script
-  if a:name ==# 'frogmouth'
-    for l:p in [expand('~/.local/bin/frogmouth'), '/usr/local/bin/frogmouth']
-      if executable(l:p) | return l:p | endif
-    endfor
+  return ''
+endfunction
+
+function! s:find_native_cmd() abort
+  let l:script = s:plugin_root . '/bin/mdrender'
+  if !filereadable(l:script)
+    return ''
   endif
+  " Find a python3 that has markdown-it-py
+  for l:py in ['python3.11', 'python3.12', 'python3.10', 'python3', 'python']
+    if !executable(l:py) | continue | endif
+    let l:check = system(l:py . ' -c "import markdown_it" 2>/dev/null')
+    if v:shell_error == 0
+      return l:py . ' ' . shellescape(l:script)
+    endif
+  endfor
   return ''
 endfunction
 
@@ -122,12 +140,12 @@ function! s:terminal_start(prev) abort
   endif
 
   let l:file = expand('%:p')
-  let l:cmd  = a:prev ==# 'glow' ? [l:bin, '-p', l:file] : [l:bin, l:file]
+  let l:cmd  = s:build_cmd(a:prev, l:bin, l:file)
   call s:open_terminal_split(l:cmd)
 
-  " glow is a static render — refresh it on save
+  " native and glow are static renders — refresh on save
   " frogmouth watches the file itself
-  if a:prev ==# 'glow'
+  if a:prev ==# 'glow' || a:prev ==# 'native'
     execute 'augroup ' . s:augroup
       autocmd!
       autocmd BufWritePost <buffer> call vim_markdown#refresh()
@@ -145,8 +163,16 @@ function! s:terminal_reopen(prev) abort
   endif
   let l:bin  = s:find_binary(a:prev)
   let l:file = expand('%:p')
-  let l:cmd  = a:prev ==# 'glow' ? [l:bin, '-p', l:file] : [l:bin, l:file]
+  let l:cmd  = s:build_cmd(a:prev, l:bin, l:file)
   call s:open_terminal_split(l:cmd)
+endfunction
+
+function! s:build_cmd(prev, bin, file) abort
+  if a:prev ==# 'native'
+    " bin is 'python3.x /path/to/mdrender' — split for termopen
+    return split(a:bin) + ['--no-pager', a:file]
+  endif
+  return [a:bin, a:file]
 endfunction
 
 function! s:open_terminal_split(cmd) abort
