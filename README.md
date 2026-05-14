@@ -34,12 +34,12 @@ The built-in renderer converts Markdown to styled terminal output using 24-bit A
 
 | Level | Font | Height | Separator |
 |-------|------|--------|-----------|
-| H1 | `colossal` | large | `═══` |
-| H2 | `doom` | medium | `───` |
+| H1 | `ansi_shadow` | large | `═══` |
+| H2 | `ansi_shadow` | large | `───` |
 | H3 | `standard` | compact | `╌╌╌` |
 | H4–H6 | `####` prefix | 1 line | — |
 
-If a heading is too long to fit the ASCII art in the terminal width (more likely with the `colossal` H1 font), or if `rich-pyfiglet` is not installed, headings fall back to the **boxed** style automatically.
+If a heading is too long to fit the ASCII art in the terminal width, or if `rich-pyfiglet` is not installed, headings fall back to the **boxed** style automatically.
 
 **Everything else:**
 
