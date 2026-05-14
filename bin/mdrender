@@ -21,7 +21,6 @@ ST = "\033[9m"   # strikethrough
 def fg(r, g, b): return f"\033[38;2;{r};{g};{b}m"
 def bg(r, g, b): return f"\033[48;2;{r};{g};{b}m"
 
-# Palette — tuned for dark backgrounds, readable on light ones too
 PAL = {
     "h1":     fg(130, 190, 255),  # sky blue
     "h2":     fg( 80, 210, 160),  # mint
@@ -29,14 +28,14 @@ PAL = {
     "h4":     fg(200, 150, 255),  # lavender
     "h5":     fg(255, 140, 120),  # salmon
     "h6":     fg(170, 170, 170),  # gray
-    "code_fg":fg(220, 215, 175),  # warm white
-    "code_bg":bg( 30,  30,  40),  # dark blue-gray
-    "quote":  fg(140, 140, 155),  # muted
-    "bar":    fg( 70,  80, 110),  # dim bar
-    "link":   fg( 90, 180, 255),  # blue link
-    "hr":     fg( 60,  65,  85),  # subtle rule
-    "bullet": fg( 90, 200, 255),  # bullet dot
-    "num":    fg(140, 140, 160),  # list numbers
+    "code_fg":fg(220, 215, 175),
+    "code_bg":bg( 30,  30,  40),
+    "quote":  fg(140, 140, 155),
+    "bar":    fg( 70,  80, 110),
+    "link":   fg( 90, 180, 255),
+    "hr":     fg( 60,  65,  85),
+    "bullet": fg( 90, 200, 255),
+    "num":    fg(140, 140, 160),
 }
 
 _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
@@ -44,10 +43,20 @@ _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 def strip_ansi(s):
     return _ANSI_RE.sub("", s)
 
+# ── ASCII art heading fonts (H1 biggest → H3 smallest) ────────────────────────
+
+ASCII_FONTS = {1: "banner", 2: "big", 3: "small"}
+
+def _figlet(text, font):
+    try:
+        import pyfiglet
+        return pyfiglet.figlet_format(text, font=font).rstrip("\n")
+    except Exception:
+        return None
+
 # ── Inline renderer ───────────────────────────────────────────────────────────
 
 def render_inline(children):
-    """Walk an inline token list and return an ANSI-styled string."""
     if not children:
         return ""
     out = []
@@ -74,39 +83,30 @@ def render_inline(children):
             out.append(f"{PAL['link']}{UL}")
         elif t.type == "link_close":
             out.append(R)
-        # images: show alt text in brackets
         elif t.type == "image":
-            alt = render_inline(t.children)
-            out.append(f"[{alt}]")
+            out.append(f"[{render_inline(t.children)}]")
     return "".join(out)
 
 # ── Word-wrap that preserves ANSI codes ───────────────────────────────────────
 
 def wrap_ansi(styled, width):
-    """Wrap styled text to `width` visible columns, keeping ANSI codes intact."""
     raw = strip_ansi(styled)
     if len(raw) <= width:
         return [styled]
 
-    # Build parallel list: for each raw char, record its position in styled
-    char_spans = []   # (styled_start, styled_end) for each raw char
+    char_spans = []
     s_i = 0
     for _ in raw:
-        # skip any ANSI sequences before this char
-        start = s_i
         while s_i < len(styled):
             m = _ANSI_RE.match(styled, s_i)
             if m:
                 s_i = m.end()
             else:
                 break
-        char_spans.append((start, s_i + 1))
+        char_spans.append((s_i, s_i + 1))
         s_i += 1
 
-    # Determine wrap points using raw text
     raw_lines = textwrap.wrap(raw, width=width) if raw.strip() else [raw]
-
-    # Extract styled segments matching each raw line
     result = []
     raw_pos = 0
     for raw_line in raw_lines:
@@ -114,18 +114,12 @@ def wrap_ansi(styled, width):
         if raw_pos >= len(char_spans):
             break
         s_start = char_spans[raw_pos][0]
-        end_pos = raw_pos + n - 1
-        if end_pos < len(char_spans):
-            s_end = char_spans[end_pos][1]
-        else:
-            s_end = len(styled)
-        # also grab trailing ANSI codes (resets etc.)
+        end_pos  = raw_pos + n - 1
+        s_end    = char_spans[end_pos][1] if end_pos < len(char_spans) else len(styled)
         while s_end < len(styled) and _ANSI_RE.match(styled, s_end):
-            m = _ANSI_RE.match(styled, s_end)
-            s_end = m.end()
+            s_end = _ANSI_RE.match(styled, s_end).end()
         result.append(styled[s_start:s_end] + R)
         raw_pos += n
-        # skip whitespace between words
         while raw_pos < len(raw) and raw[raw_pos] == " ":
             raw_pos += 1
 
@@ -134,14 +128,13 @@ def wrap_ansi(styled, width):
 # ── Block renderer ────────────────────────────────────────────────────────────
 
 class Renderer:
-    def __init__(self, width):
-        self.width     = width
-        self.out       = []
-        self.indent    = 0          # spaces of current indent
-        self.in_quote  = False
-        self.list_stack= []         # stack of ["bullet"|"ordered", counter]
-
-    # ── entry ─────────────────────────────────────────────────────────────────
+    def __init__(self, width, header_style="ascii"):
+        self.width         = width
+        self.header_style  = header_style
+        self.out           = []
+        self.indent        = 0
+        self.in_quote      = False
+        self.list_stack    = []
 
     def render(self, tokens):
         i = 0
@@ -157,7 +150,6 @@ class Renderer:
 
             elif t.type == "paragraph_open":
                 inline = tokens[i + 1]
-                # skip bare list-item paragraphs (handled in list_item_open)
                 if not self.list_stack:
                     self._paragraph(render_inline(inline.children))
                 i += 3
@@ -202,7 +194,6 @@ class Renderer:
             elif t.type == "list_item_open":
                 if self.list_stack:
                     self.list_stack[-1][1] += 1
-                # collect until matching list_item_close
                 depth = 1
                 j = i + 1
                 item_tokens = []
@@ -222,30 +213,69 @@ class Renderer:
 
         return "".join(self.out)
 
-    # ── block helpers ─────────────────────────────────────────────────────────
+    # ── headings ──────────────────────────────────────────────────────────────
 
     def _heading(self, level, styled):
+        self._emit("\n")
+        if self.header_style == "ascii" and level in ASCII_FONTS:
+            self._heading_ascii(level, styled)
+        elif level <= 3:
+            self._heading_boxed(level, styled)
+        else:
+            self._heading_plain(level, styled)
+
+    def _heading_ascii(self, level, styled):
         color = PAL.get(f"h{level}", PAL["h6"])
         raw   = strip_ansi(styled)
         pad   = " " * self.indent
-        inner = len(raw) + 2   # one space padding each side
+        font  = ASCII_FONTS[level]
 
-        # Box characters per level
+        art = _figlet(raw, font)
+        if art is None or not art.strip():
+            # pyfiglet failed or text too long — fall back to boxed
+            self._heading_boxed(level, styled)
+            return
+
+        art_lines   = art.split("\n")
+        art_width   = max(len(l) for l in art_lines)
+        avail       = self.width - self.indent
+
+        # If the art is wider than the terminal, fall back to boxed
+        if art_width > avail:
+            self._heading_boxed(level, styled)
+            return
+
+        # Separator line under the art, same width as widest art line
+        sep_chars = {1: "═", 2: "─", 3: "╌"}
+        sep = sep_chars.get(level, "─") * art_width
+
+        for line in art_lines:
+            self._emit(f"{pad}{color}{line}{R}\n")
+        self._emit(f"{pad}{color}{DM}{sep}{R}\n\n")
+
+    def _heading_boxed(self, level, styled):
+        color = PAL.get(f"h{level}", PAL["h6"])
+        raw   = strip_ansi(styled)
+        pad   = " " * self.indent
+        inner = len(raw) + 2
+
         boxes = {
-            1: ("╔", "╗", "╚", "╝", "═", "║"),  # double — heaviest
-            2: ("┌", "┐", "└", "┘", "─", "│"),  # single
-            3: ("╭", "╮", "╰", "╯", "─", "│"),  # rounded
+            1: ("╔", "╗", "╚", "╝", "═", "║"),
+            2: ("┌", "┐", "└", "┘", "─", "│"),
+            3: ("╭", "╮", "╰", "╯", "─", "│"),
         }
+        tl, tr, bl, br, h, v = boxes.get(level, boxes[3])
+        self._emit(f"{pad}{color}{tl}{h * inner}{tr}{R}\n")
+        self._emit(f"{pad}{color}{v}{R} {color}{B}{styled}{R} {color}{v}{R}\n")
+        self._emit(f"{pad}{color}{bl}{h * inner}{br}{R}\n\n")
 
-        self._emit("\n")
-        if level in boxes:
-            tl, tr, bl, br, h, v = boxes[level]
-            self._emit(f"{pad}{color}{tl}{h * inner}{tr}{R}\n")
-            self._emit(f"{pad}{color}{v}{R} {color}{B}{styled}{R} {color}{v}{R}\n")
-            self._emit(f"{pad}{color}{bl}{h * inner}{br}{R}\n\n")
-        else:
-            prefix = "#" * level + " "
-            self._emit(f"{pad}{color}{B}{prefix}{styled}{R}\n\n")
+    def _heading_plain(self, level, styled):
+        color  = PAL.get(f"h{level}", PAL["h6"])
+        pad    = " " * self.indent
+        prefix = "#" * level + " "
+        self._emit(f"{pad}{color}{B}{prefix}{styled}{R}\n\n")
+
+    # ── other blocks ──────────────────────────────────────────────────────────
 
     def _paragraph(self, styled):
         avail = self.width - self.indent - (4 if self.in_quote else 0)
@@ -261,9 +291,9 @@ class Renderer:
         self._emit("\n")
 
     def _fence(self, content, lang):
-        avail  = self.width - self.indent - 2
-        pad    = " " * self.indent
-        label  = f" {lang}" if lang else ""
+        avail = self.width - self.indent - 2
+        pad   = " " * self.indent
+        label = f" {lang}" if lang else ""
         self._emit(f"\n{pad}{PAL['code_bg']}{PAL['code_fg']}{B}{label}{R}\n")
         for line in content.rstrip("\n").split("\n"):
             visible = line[:avail]
@@ -278,17 +308,14 @@ class Renderer:
         kind, n = self.list_stack[-1]
         marker  = (f"{PAL['bullet']}•{R} " if kind == "bullet"
                    else f"{PAL['num']}{n}.{R} ")
-        pad     = " " * self.indent
-        avail   = self.width - self.indent - 4
-
-        # find inline content for this item
+        pad   = " " * self.indent
+        avail = self.width - self.indent - 4
         for t in item_tokens:
             if t.type == "inline":
                 styled = render_inline(t.children)
                 lines  = wrap_ansi(styled, avail)
                 for idx, ln in enumerate(lines):
-                    prefix = marker if idx == 0 else "  "
-                    self._emit(f"{pad}{prefix}{ln}\n")
+                    self._emit(f"{pad}{marker if idx == 0 else '  '}{ln}\n")
                 break
 
     def _emit(self, s):
@@ -298,12 +325,19 @@ class Renderer:
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main():
-    if len(sys.argv) < 2:
-        sys.stderr.write("usage: mdrender <file.md>\n")
-        sys.exit(1)
+    import argparse
+    p = argparse.ArgumentParser()
+    p.add_argument("file")
+    p.add_argument("--no-pager",      action="store_true")
+    p.add_argument("--header-style",  default="ascii", choices=["ascii", "boxed"])
+    ns = p.parse_args()
 
-    no_pager = "--no-pager" in sys.argv
-    path     = next(a for a in sys.argv[1:] if not a.startswith("-"))
+    no_pager     = ns.no_pager
+    header_style = ns.header_style
+    path         = ns.file
+    if not path:
+        sys.stderr.write("mdrender: no file specified\n")
+        sys.exit(1)
 
     try:
         source = open(path, encoding="utf-8").read()
@@ -311,14 +345,12 @@ def main():
         sys.stderr.write(f"mdrender: {e}\n")
         sys.exit(1)
 
-    tokens  = MarkdownIt("gfm-like", {"linkify": False}).parse(source)
-    width   = min(shutil.get_terminal_size((100, 40)).columns, 100)
-    output  = Renderer(width).render(tokens)
+    tokens = MarkdownIt("gfm-like", {"linkify": False}).parse(source)
+    width  = min(shutil.get_terminal_size((100, 40)).columns, 100)
+    output = Renderer(width, header_style=header_style).render(tokens)
 
     term_lines = shutil.get_terminal_size((100, 40)).lines
-    out_lines  = output.count("\n")
-
-    if not no_pager and sys.stdout.isatty() and out_lines > term_lines - 2:
+    if not no_pager and sys.stdout.isatty() and output.count("\n") > term_lines - 2:
         pager = subprocess.Popen(["less", "-R", "--mouse", "--wheel-lines=3"], stdin=subprocess.PIPE)
         pager.communicate(output.encode("utf-8"))
     else:

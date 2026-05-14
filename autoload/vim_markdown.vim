@@ -154,8 +154,9 @@ endfunction
 
 function! s:build_cmd(prev, bin, file) abort
   if a:prev ==# 'native'
-    " No --no-pager: let less run so 'q' exits cleanly back to the buffer
-    return [a:bin, s:plugin_root . '/bin/mdrender', a:file]
+    let l:style = get(g:, 'vim_markdown_header_style', 'ascii')
+    return [a:bin, s:plugin_root . '/bin/mdrender',
+          \ '--header-style', l:style, a:file]
   endif
   return [a:bin, a:file]
 endfunction
