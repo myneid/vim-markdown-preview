@@ -43,14 +43,25 @@ _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 def strip_ansi(s):
     return _ANSI_RE.sub("", s)
 
-# ── ASCII art heading fonts (H1 biggest → H3 smallest) ────────────────────────
+# ── ASCII art heading fonts and gradients (H1 biggest → H3 smallest) ─────────
 
 ASCII_FONTS = {1: "banner", 2: "big", 3: "small"}
 
-def _figlet(text, font):
+ASCII_COLORS = {
+    1: ["rgb(130,190,255)", "rgb(80,140,255)"],   # sky blue → deep blue
+    2: ["rgb(80,210,160)",  "rgb(40,180,120)"],   # mint → teal
+    3: ["rgb(255,200,80)",  "rgb(255,150,40)"],   # amber → orange
+}
+
+def _figlet(text, font, colors, width):
     try:
-        import pyfiglet
-        return pyfiglet.figlet_format(text, font=font).rstrip("\n")
+        from rich_pyfiglet import RichFiglet
+        from rich.console import Console
+        from io import StringIO
+        buf = StringIO()
+        console = Console(file=buf, highlight=False, width=width, force_terminal=True)
+        console.print(RichFiglet(text, font=font, colors=colors, remove_blank_lines=True))
+        return buf.getvalue().rstrip("\n")
     except Exception:
         return None
 
@@ -225,32 +236,31 @@ class Renderer:
             self._heading_plain(level, styled)
 
     def _heading_ascii(self, level, styled):
-        color = PAL.get(f"h{level}", PAL["h6"])
         raw   = strip_ansi(styled)
         pad   = " " * self.indent
+        avail = self.width - self.indent
         font  = ASCII_FONTS[level]
+        colors = ASCII_COLORS[level]
 
-        art = _figlet(raw, font)
+        art = _figlet(raw, font, colors, avail)
         if art is None or not art.strip():
-            # pyfiglet failed or text too long — fall back to boxed
             self._heading_boxed(level, styled)
             return
 
-        art_lines   = art.split("\n")
-        art_width   = max(len(l) for l in art_lines)
-        avail       = self.width - self.indent
+        art_lines = art.split("\n")
+        art_width = max(len(strip_ansi(l)) for l in art_lines)
 
-        # If the art is wider than the terminal, fall back to boxed
         if art_width > avail:
             self._heading_boxed(level, styled)
             return
 
-        # Separator line under the art, same width as widest art line
+        # Separator matches the base color for this level
+        color     = PAL.get(f"h{level}", PAL["h6"])
         sep_chars = {1: "═", 2: "─", 3: "╌"}
-        sep = sep_chars.get(level, "─") * art_width
+        sep       = sep_chars.get(level, "─") * art_width
 
         for line in art_lines:
-            self._emit(f"{pad}{color}{line}{R}\n")
+            self._emit(f"{pad}{line}\n")
         self._emit(f"{pad}{color}{DM}{sep}{R}\n\n")
 
     def _heading_boxed(self, level, styled):
