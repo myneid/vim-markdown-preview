@@ -5,33 +5,61 @@ A lightweight Vim/Neovim plugin to preview Markdown files. Toggle between edit a
 ## Requirements
 
 - Vim 8+ or Neovim
-- The native backend requires Python 3 with `markdown-it-py` (see below)
+- The native backend requires Python 3 with two packages:
+
+```sh
+pip install -r requirements.txt
+```
+
+Or individually:
+
+```sh
+pip install markdown-it-py pyfiglet
+```
 
 ## Backends
 
 | Backend | Type | Requirement |
 |---------|------|-------------|
-| **native** *(default)* | ANSI renderer in a terminal split | `pip install markdown-it-py` |
+| **native** *(default)* | ANSI renderer, same-window | `pip install markdown-it-py pyfiglet` |
 | **frogmouth** | Interactive TUI browser | `pip install frogmouth` |
 | **glow** | Terminal pager | `brew install glow` |
 | **pandoc** | Browser (HTML) | `brew install pandoc` |
 
-**native** — a built-in renderer that converts Markdown to styled terminal output using 24-bit ANSI colour codes. Opens in a vertical split. No external tool needed beyond Python and `markdown-it-py`.
+### native
 
-- H1 in sky blue with `═══` underline decoration
-- H2 in mint green with `───` underline decoration
-- H3–H6 each with a distinct colour and `###` prefix
+The built-in renderer converts Markdown to styled terminal output using 24-bit ANSI colour codes and ASCII art headings. No external tool needed beyond Python and the two pip packages.
+
+**Headings** use `pyfiglet` to render ASCII art banners, sized by level:
+
+| Level | Font | Height | Separator |
+|-------|------|--------|-----------|
+| H1 | `banner` | 7 lines | `═══` |
+| H2 | `big` | 6 lines | `───` |
+| H3 | `small` | 4 lines | `╌╌╌` |
+| H4–H6 | `####` prefix | 1 line | — |
+
+If a heading is too long to fit the ASCII art in the terminal width, or if `pyfiglet` is not installed, headings fall back to the **boxed** style automatically.
+
+**Everything else:**
+
 - Bold, italic, inline code, strikethrough, and links styled inline
 - Code blocks on a dark background with a language label
 - Blockquotes with a `│` bar and dimmed italic text
 - Coloured `•` bullets and muted numbered list markers
-- Re-renders automatically on every save
+- Mouse wheel scrolling supported (requires `set mouse=a`)
 
-**frogmouth** — a full terminal Markdown browser. Opens in a vertical split, navigates links, and watches the file for changes automatically.
+### frogmouth
 
-**glow** — renders Markdown with colours and structure in a terminal split. Re-renders on every save.
+A full terminal Markdown browser. Takes over the current window, navigates links, and watches the file for changes automatically. Press `q` to return to editing.
 
-**pandoc** — converts the file to styled HTML and opens it in your default browser. Re-generates on every save; you refresh the tab manually.
+### glow
+
+Renders Markdown with colours and structure in a terminal pager. Press `q` to return to editing.
+
+### pandoc
+
+Converts the file to styled HTML (GitHub-style CSS with dark mode support) and opens it in your default browser. Re-generates the HTML on every save; you refresh the browser tab manually (`⌘R` / `F5`).
 
 ## Installation
 
@@ -41,10 +69,8 @@ A lightweight Vim/Neovim plugin to preview Markdown files. Toggle between edit a
 Plug 'myneid/vim-markdown'
 ```
 
-Then install the Python dependency:
-
 ```sh
-pip install markdown-it-py
+pip install -r ~/.vim/plugged/vim-markdown/requirements.txt
 ```
 
 ### lazy.nvim
@@ -53,10 +79,18 @@ pip install markdown-it-py
 { "myneid/vim-markdown" }
 ```
 
+```sh
+pip install -r ~/.local/share/nvim/lazy/vim-markdown/requirements.txt
+```
+
 ### Manual
 
 ```vim
 set runtimepath+=/path/to/vim-markdown
+```
+
+```sh
+pip install -r /path/to/vim-markdown/requirements.txt
 ```
 
 ## Usage
@@ -71,24 +105,13 @@ Open any Markdown file, then:
 | Toggle preview | `:MarkdownPreviewToggle` |
 | Show debug info | `:MarkdownPreviewDebug` |
 
+`<leader>` is `\` by default in Vim. Many people remap it to `,` or `<Space>`.
+
 The keymap is only active in `filetype=markdown` buffers.
-
-## Configuration
-
-```vim
-" Choose your backend (default: 'native')
-let g:vim_markdown_previewer = 'native'      " built-in ANSI renderer
-let g:vim_markdown_previewer = 'frogmouth'   " interactive TUI browser
-let g:vim_markdown_previewer = 'glow'        " terminal pager
-let g:vim_markdown_previewer = 'pandoc'      " browser (HTML)
-
-" Override the toggle keymap (default: <leader>mp)
-let g:vim_markdown_preview_key = '<F5>'
-```
 
 ## Switching between edit and preview
 
-The preview takes over the current window — no split. Press `<leader>mp` to enter preview mode; press `q` to exit the previewer and return to editing at the same cursor position.
+The preview takes over the current window — no split. Press `<leader>mp` to enter preview mode, and `q` to quit the previewer and return to editing at the same cursor position.
 
 | Backend | How to return to editing |
 |---------|--------------------------|
@@ -97,15 +120,33 @@ The preview takes over the current window — no split. Press `<leader>mp` to en
 | frogmouth | Press `q` to quit frogmouth |
 | pandoc | Stays in the browser — edit mode is unaffected |
 
+## Configuration
+
+```vim
+" Preview backend (default: 'native')
+let g:vim_markdown_previewer = 'native'      " built-in ANSI renderer
+let g:vim_markdown_previewer = 'frogmouth'   " interactive TUI browser
+let g:vim_markdown_previewer = 'glow'        " terminal pager
+let g:vim_markdown_previewer = 'pandoc'      " browser (HTML)
+
+" Header style for the native backend (default: 'ascii')
+let g:vim_markdown_header_style = 'ascii'    " ASCII art banners via pyfiglet
+let g:vim_markdown_header_style = 'boxed'    " box-drawing characters
+
+" Toggle keymap (default: <leader>mp)
+let g:vim_markdown_preview_key = '<F5>'
+```
+
 ## Refresh behaviour
 
 | Backend | On save |
 |---------|---------|
-| native / glow / frogmouth | Toggle off, save, toggle on again |
-| pandoc | HTML is regenerated — press `⌘R` / `F5` in the browser |
+| native / glow / frogmouth | Toggle off (`:w`), toggle on again |
+| pandoc | HTML regenerates automatically — refresh the browser tab |
 
 ## Limitations
 
 - The preview reflects the **saved** file. Run `:w` before toggling.
 - The file must already exist on disk (not a new unnamed buffer).
-- All terminal backends require a terminal that supports 24-bit ANSI colour.
+- All terminal backends require a terminal with 24-bit ANSI colour support.
+- ASCII art headers (`pyfiglet`) may fall back to boxed style for very long headings.
