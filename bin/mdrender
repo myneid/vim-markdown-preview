@@ -47,21 +47,29 @@ def strip_ansi(s):
 
 ASCII_FONTS = {1: "banner", 2: "big", 3: "small"}
 
-ASCII_COLORS = {
-    1: ["rgb(130,190,255)", "rgb(80,140,255)"],   # sky blue → deep blue
-    2: ["rgb(80,210,160)",  "rgb(40,180,120)"],   # mint → teal
-    3: ["rgb(255,200,80)",  "rgb(255,150,40)"],   # amber → orange
+# Each level: (start_rgb, end_rgb)
+ASCII_GRADIENTS = {
+    1: ((130, 190, 255), ( 80, 140, 255)),  # sky blue  → deep blue
+    2: (( 80, 210, 160), ( 40, 180, 120)),  # mint      → teal
+    3: ((255, 200,  80), (255, 150,  40)),  # amber     → orange
 }
 
-def _figlet(text, font, colors, width):
+def _lerp(a, b, t):
+    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+def _figlet(text, font, c1, c2, width):
+    """Render text as ASCII art with a vertical colour gradient."""
     try:
-        from rich_pyfiglet import RichFiglet
-        from rich.console import Console
-        from io import StringIO
-        buf = StringIO()
-        console = Console(file=buf, highlight=False, width=width, force_terminal=True)
-        console.print(RichFiglet(text, font=font, colors=colors, remove_blank_lines=True))
-        return buf.getvalue().rstrip("\n")
+        import pyfiglet
+        raw = pyfiglet.figlet_format(text, font=font, width=width)
+        lines = [l for l in raw.split("\n") if l.strip()]
+        n = len(lines)
+        out = []
+        for i, line in enumerate(lines):
+            t = i / max(n - 1, 1)
+            r, g, b = _lerp(c1, c2, t)
+            out.append(f"\033[38;2;{r};{g};{b}m{line}{R}")
+        return "\n".join(out)
     except Exception as e:
         sys.stderr.write(f"mdrender [figlet]: {type(e).__name__}: {e}\n")
         return None
@@ -237,13 +245,13 @@ class Renderer:
             self._heading_plain(level, styled)
 
     def _heading_ascii(self, level, styled):
-        raw   = strip_ansi(styled)
-        pad   = " " * self.indent
+        raw  = strip_ansi(styled)
+        pad  = " " * self.indent
         avail = self.width - self.indent
         font  = ASCII_FONTS[level]
-        colors = ASCII_COLORS[level]
+        c1, c2 = ASCII_GRADIENTS[level]
 
-        art = _figlet(raw, font, colors, avail)
+        art = _figlet(raw, font, c1, c2, avail)
         if art is None or not art.strip():
             self._heading_boxed(level, styled)
             return
