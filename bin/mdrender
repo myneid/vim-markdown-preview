@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+from io import StringIO
 
 from markdown_it import MarkdownIt
 
@@ -45,7 +46,7 @@ def strip_ansi(s):
 
 # ── ASCII art heading fonts and gradients (H1 biggest → H3 smallest) ─────────
 
-ASCII_FONTS = {1: "banner", 2: "big", 3: "small"}
+ASCII_FONTS = {1: "colossal", 2: "doom", 3: "standard"}
 
 # Each level: (start_rgb, end_rgb)
 ASCII_GRADIENTS = {
@@ -54,24 +55,35 @@ ASCII_GRADIENTS = {
     3: ((255, 200,  80), (255, 150,  40)),  # amber     → orange
 }
 
-def _lerp(a, b, t):
-    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+def _rgb_hex(rgb):
+    return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
 def _figlet(text, font, c1, c2, width):
-    """Render text as ASCII art with a vertical colour gradient."""
+    """Render text as ASCII art with Rich Figlet and a vertical colour gradient."""
     try:
-        import pyfiglet
-        raw = pyfiglet.figlet_format(text, font=font, width=width)
-        lines = [l for l in raw.split("\n") if l.strip()]
-        n = len(lines)
-        out = []
-        for i, line in enumerate(lines):
-            t = i / max(n - 1, 1)
-            r, g, b = _lerp(c1, c2, t)
-            out.append(f"\033[38;2;{r};{g};{b}m{line}{R}")
-        return "\n".join(out)
+        from rich.console import Console
+        from rich_pyfiglet import RichFiglet
+
+        buf = StringIO()
+        console = Console(
+            file=buf,
+            force_terminal=True,
+            color_system="truecolor",
+            width=width,
+        )
+        fig = RichFiglet(
+            text,
+            font=font,
+            width=width,
+            colors=[_rgb_hex(c1), _rgb_hex(c2)],
+            horizontal=False,
+            remove_blank_lines=True,
+        )
+        console.print(fig, overflow="ignore", crop=False, end="")
+        rendered = buf.getvalue().rstrip("\n")
+        return rendered if strip_ansi(rendered).strip() else None
     except Exception as e:
-        sys.stderr.write(f"mdrender [figlet]: {type(e).__name__}: {e}\n")
+        sys.stderr.write(f"mdrender [rich-figlet]: {type(e).__name__}: {e}\n")
         return None
 
 # ── Inline renderer ───────────────────────────────────────────────────────────

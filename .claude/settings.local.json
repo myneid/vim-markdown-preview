@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(brew list *)",
+      "Bash(gh auth *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(gh repo *)",
+      "Bash(pandoc --version)",
+      "Bash(git push *)",
+      "Bash(pip show *)",
+      "Bash(glow --version)",
+      "Bash(pip install *)",
+      "Bash(frogmouth --version)",
+      "Bash(python3 *)",
+      "Bash(pip3 show *)",
+      "Bash(python3.11 *)",
+      "Bash(chmod +x *)",
+      "Bash(git commit -m 'Switch preview to same-window mode — no split *)",
+      "Bash(less --version)",
+      "Bash(git commit -m 'Enable mouse wheel scrolling in the native pager \\(less --mouse\\) *)",
+      "Bash(pip3.11 show *)",
+      "Bash(pip3.11 install *)",
+      "Bash(git commit -m 'Add ASCII art headers as default style, keep boxed as option *)",
+      "Bash(git commit -m 'Add requirements.txt and update README with full documentation *)",
+      "WebFetch(domain:pypi.org)",
+      "Bash(git commit -m 'Switch to rich-pyfiglet for gradient ASCII art headings *)",
+      "Bash(git commit -m 'Surface figlet errors to stderr instead of swallowing them *)",
+      "Bash(git commit -m 'Implement gradient with plain pyfiglet + manual ANSI interpolation *)"
+    ]
+  }
+}

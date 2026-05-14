@@ -14,14 +14,14 @@ pip install -r requirements.txt
 Or individually:
 
 ```sh
-pip install markdown-it-py pyfiglet
+pip install markdown-it-py rich-pyfiglet
 ```
 
 ## Backends
 
 | Backend | Type | Requirement |
 |---------|------|-------------|
-| **native** *(default)* | ANSI renderer, same-window | `pip install markdown-it-py pyfiglet` |
+| **native** *(default)* | ANSI renderer, same-window | `pip install markdown-it-py rich-pyfiglet` |
 | **frogmouth** | Interactive TUI browser | `pip install frogmouth` |
 | **glow** | Terminal pager | `brew install glow` |
 | **pandoc** | Browser (HTML) | `brew install pandoc` |
@@ -30,16 +30,16 @@ pip install markdown-it-py pyfiglet
 
 The built-in renderer converts Markdown to styled terminal output using 24-bit ANSI colour codes and ASCII art headings. No external tool needed beyond Python and the two pip packages.
 
-**Headings** use `pyfiglet` to render colour-gradient ASCII art banners, sized by level:
+**Headings** use Rich Figlet (`rich-pyfiglet`) to render colour-gradient ASCII art banners, sized by level:
 
 | Level | Font | Height | Separator |
 |-------|------|--------|-----------|
-| H1 | `banner` | 7 lines | `═══` |
-| H2 | `big` | 6 lines | `───` |
-| H3 | `small` | 4 lines | `╌╌╌` |
+| H1 | `colossal` | large | `═══` |
+| H2 | `doom` | medium | `───` |
+| H3 | `standard` | compact | `╌╌╌` |
 | H4–H6 | `####` prefix | 1 line | — |
 
-If a heading is too long to fit the ASCII art in the terminal width, or if `pyfiglet` is not installed, headings fall back to the **boxed** style automatically.
+If a heading is too long to fit the ASCII art in the terminal width (more likely with the `colossal` H1 font), or if `rich-pyfiglet` is not installed, headings fall back to the **boxed** style automatically.
 
 **Everything else:**
 
@@ -130,7 +130,7 @@ let g:vim_markdown_previewer = 'glow'        " terminal pager
 let g:vim_markdown_previewer = 'pandoc'      " browser (HTML)
 
 " Header style for the native backend (default: 'ascii')
-let g:vim_markdown_header_style = 'ascii'    " ASCII art banners via pyfiglet
+let g:vim_markdown_header_style = 'ascii'    " ASCII art banners via rich-pyfiglet
 let g:vim_markdown_header_style = 'boxed'    " box-drawing characters
 
 " Toggle keymap (default: <leader>mp)
@@ -149,4 +149,4 @@ let g:vim_markdown_preview_key = '<F5>'
 - The preview reflects the **saved** file. Run `:w` before toggling.
 - The file must already exist on disk (not a new unnamed buffer).
 - All terminal backends require a terminal with 24-bit ANSI colour support.
-- ASCII art headers (`pyfiglet`) may fall back to boxed style for very long headings.
+- ASCII art headers (`rich-pyfiglet`) may fall back to boxed style for very long headings.
