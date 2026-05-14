@@ -62,7 +62,8 @@ def _figlet(text, font, colors, width):
         console = Console(file=buf, highlight=False, width=width, force_terminal=True)
         console.print(RichFiglet(text, font=font, colors=colors, remove_blank_lines=True))
         return buf.getvalue().rstrip("\n")
-    except Exception:
+    except Exception as e:
+        sys.stderr.write(f"mdrender [figlet]: {type(e).__name__}: {e}\n")
         return None
 
 # ── Inline renderer ───────────────────────────────────────────────────────────
