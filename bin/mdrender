@@ -46,7 +46,7 @@ def strip_ansi(s):
 
 # ── ASCII art heading fonts and gradients (H1 biggest → H3 smallest) ─────────
 
-ASCII_FONTS = {1: "ansi_shadow", 2: "ansi_shadow", 3: "standard"}
+ASCII_FONTS = {1: "standard", 2: "small", 3: "mini"}
 
 # Each level: (start_rgb, end_rgb)
 ASCII_GRADIENTS = {
