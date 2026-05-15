@@ -46,8 +46,11 @@ def strip_ansi(s):
 
 # ── ASCII art heading fonts and gradients (compact defaults) ─────────────────
 
-# Keep FIGlet headings intentionally compact to avoid oversized titles.
-ASCII_FONTS = {1: "small", 2: "mini"}
+# Keep Rich FIGlet headings intentionally compact to avoid oversized titles.
+ASCII_FONTS = {1: "mini", 2: "mini"}
+
+# Maximum rendered Rich FIGlet height (in rows) per heading level.
+ASCII_MAX_HEIGHT = {1: 4, 2: 4}
 
 # Each level: (start_rgb, end_rgb)
 ASCII_GRADIENTS = {
@@ -270,8 +273,11 @@ class Renderer:
 
         art_lines = art.split("\n")
         art_width = max(len(strip_ansi(l)) for l in art_lines)
+        max_height = ASCII_MAX_HEIGHT.get(level, 4)
 
-        if art_width > avail:
+        # Rich FIGlet can be visually too large even with compact fonts.
+        # Fall back to boxed headings when art exceeds width or height limits.
+        if art_width > avail or len(art_lines) > max_height:
             self._heading_boxed(level, styled)
             return
 
