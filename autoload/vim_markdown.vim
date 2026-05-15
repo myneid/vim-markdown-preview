@@ -5,6 +5,7 @@ let s:preview_bufnr = -1
 let s:preview_job   = -1   " Neovim job id
 let s:md_bufnr      = -1   " markdown buffer to return to
 let s:md_cursor     = []
+let s:md_file       = ''
 let s:augroup       = 'VimMarkdownRefresh'
 
 let s:install_hints = {
@@ -54,11 +55,7 @@ function! vim_markdown#stop() abort
   let s:active  = 0
 
   " Return to the markdown buffer first, then delete the preview buffer
-  if s:md_bufnr > 0 && bufexists(s:md_bufnr)
-    execute 'buffer ' . s:md_bufnr
-    if !empty(s:md_cursor) | call setpos('.', s:md_cursor) | endif
-  endif
-  let s:md_bufnr = -1
+  call s:restore_markdown_buffer()
 
   if l:pbuf > 0 && bufexists(l:pbuf)
     execute 'bdelete! ' . l:pbuf
@@ -145,6 +142,7 @@ function! s:terminal_start(prev) abort
   " Remember where to return
   let s:md_bufnr  = bufnr('%')
   let s:md_cursor = getpos('.')
+  let s:md_file   = expand('%:p')
 
   let l:file = expand('%:p')
   let l:cmd  = s:build_cmd(a:prev, l:bin, l:file)
@@ -205,15 +203,26 @@ function! s:return_to_md(timer) abort
   let l:pbuf      = s:preview_bufnr
   let s:preview_bufnr = -1
 
-  if s:md_bufnr > 0 && bufexists(s:md_bufnr)
-    execute 'buffer ' . s:md_bufnr
-    if !empty(s:md_cursor) | call setpos('.', s:md_cursor) | endif
-  endif
-  let s:md_bufnr = -1
+  call s:restore_markdown_buffer()
 
   if l:pbuf > 0 && bufexists(l:pbuf)
     execute 'bdelete! ' . l:pbuf
   endif
+endfunction
+
+function! s:restore_markdown_buffer() abort
+  if s:md_bufnr > 0 && bufexists(s:md_bufnr)
+    execute 'buffer ' . s:md_bufnr
+  elseif !empty(s:md_file) && filereadable(s:md_file)
+    execute 'edit ' . fnameescape(s:md_file)
+  endif
+
+  if !empty(s:md_cursor) && line('$') > 0
+    call setpos('.', s:md_cursor)
+  endif
+
+  let s:md_bufnr = -1
+  let s:md_file  = ''
 endfunction
 
 " ── private: pandoc (browser) ─────────────────────────────────────────────────
