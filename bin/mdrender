@@ -44,13 +44,15 @@ _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 def strip_ansi(s):
     return _ANSI_RE.sub("", s)
 
-# ── ASCII art heading fonts and gradients (compact defaults) ─────────────────
+# ── ASCII art heading fonts and gradients (block-style defaults) ─────────────
 
-# Keep Rich FIGlet headings intentionally compact to avoid oversized titles.
-ASCII_FONTS = {1: "mini", 2: "mini"}
+ASCII_DEFAULT_FONT = "chunky"
 
-# Maximum rendered Rich FIGlet height (in rows) per heading level.
-ASCII_MAX_HEIGHT = {1: 4, 2: 4}
+# Keep Rich FIGlet headings blocky while still narrower than the old banners.
+ASCII_MAX_HEIGHT_BY_FONT = {
+    "chunky": 5,
+    "block": 12,
+}
 
 # Each level: (start_rgb, end_rgb)
 ASCII_GRADIENTS = {
@@ -163,9 +165,10 @@ def wrap_ansi(styled, width):
 # ── Block renderer ────────────────────────────────────────────────────────────
 
 class Renderer:
-    def __init__(self, width, header_style="ascii"):
+    def __init__(self, width, header_style="ascii", ascii_font=ASCII_DEFAULT_FONT):
         self.width         = width
         self.header_style  = header_style
+        self.ascii_font    = ascii_font if ascii_font in ASCII_MAX_HEIGHT_BY_FONT else ASCII_DEFAULT_FONT
         self.out           = []
         self.indent        = 0
         self.in_quote      = False
@@ -252,7 +255,7 @@ class Renderer:
 
     def _heading(self, level, styled):
         self._emit("\n")
-        if self.header_style == "ascii" and level in ASCII_FONTS:
+        if self.header_style == "ascii" and level in ASCII_GRADIENTS:
             self._heading_ascii(level, styled)
         elif level <= 3:
             self._heading_boxed(level, styled)
@@ -263,7 +266,7 @@ class Renderer:
         raw  = strip_ansi(styled)
         pad  = " " * self.indent
         avail = self.width - self.indent
-        font  = ASCII_FONTS[level]
+        font  = self.ascii_font
         c1, c2 = ASCII_GRADIENTS[level]
 
         art = _figlet(raw, font, c1, c2, avail)
@@ -273,7 +276,7 @@ class Renderer:
 
         art_lines = art.split("\n")
         art_width = max(len(strip_ansi(l)) for l in art_lines)
-        max_height = ASCII_MAX_HEIGHT.get(level, 4)
+        max_height = ASCII_MAX_HEIGHT_BY_FONT.get(font, 8)
 
         # Rich FIGlet can be visually too large even with compact fonts.
         # Fall back to boxed headings when art exceeds width or height limits.
@@ -367,10 +370,12 @@ def main():
     p.add_argument("file")
     p.add_argument("--no-pager",      action="store_true")
     p.add_argument("--header-style",  default="ascii", choices=["ascii", "boxed"])
+    p.add_argument("--ascii-font",    default=ASCII_DEFAULT_FONT, choices=sorted(ASCII_MAX_HEIGHT_BY_FONT.keys()))
     ns = p.parse_args()
 
     no_pager     = ns.no_pager
     header_style = ns.header_style
+    ascii_font   = ns.ascii_font
     path         = ns.file
     if not path:
         sys.stderr.write("mdrender: no file specified\n")
@@ -384,7 +389,7 @@ def main():
 
     tokens = MarkdownIt("gfm-like", {"linkify": False}).parse(source)
     width  = min(shutil.get_terminal_size((100, 40)).columns, 100)
-    output = Renderer(width, header_style=header_style).render(tokens)
+    output = Renderer(width, header_style=header_style, ascii_font=ascii_font).render(tokens)
 
     term_lines = shutil.get_terminal_size((100, 40)).lines
     if not no_pager and sys.stdout.isatty() and output.count("\n") > term_lines - 2:

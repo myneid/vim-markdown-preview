@@ -28,7 +28,9 @@
       "Bash(git commit -m 'Switch to rich-pyfiglet for gradient ASCII art headings *)",
       "Bash(git commit -m 'Surface figlet errors to stderr instead of swallowing them *)",
       "Bash(git commit -m 'Implement gradient with plain pyfiglet + manual ANSI interpolation *)",
-      "Bash(git commit -m 'Scale down header fonts: standard/small/mini instead of ansi_shadow *)"
+      "Bash(git commit -m 'Scale down header fonts: standard/small/mini instead of ansi_shadow *)",
+      "Read(//Users/tanguy/Dropbox/Documents/0x7a69/**)",
+      "Read(//Users/tanguy/**)"
     ]
   }
 }

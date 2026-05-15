@@ -155,8 +155,11 @@ endfunction
 function! s:build_cmd(prev, bin, file) abort
   if a:prev ==# 'native'
     let l:style = get(g:, 'vim_markdown_header_style', 'ascii')
+    let l:font  = get(g:, 'vim_markdown_ascii_font', 'chunky')
     return [a:bin, s:plugin_root . '/bin/mdrender',
-          \ '--header-style', l:style, a:file]
+          \ '--header-style', l:style,
+          \ '--ascii-font', l:font,
+          \ a:file]
   endif
   return [a:bin, a:file]
 endfunction

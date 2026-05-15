@@ -30,14 +30,16 @@ pip install markdown-it-py rich-pyfiglet
 
 The built-in renderer converts Markdown to styled terminal output using 24-bit ANSI colour codes and ASCII art headings. No external tool needed beyond Python and the two pip packages.
 
-**Headings** use Rich Figlet (`rich-pyfiglet`) to render colour-gradient ASCII art banners, sized by level:
+**Headings** use Rich Figlet (`rich-pyfiglet`) to render colour-gradient block-style banners, sized by level:
 
 | Level | Font | Height | Separator |
 |-------|------|--------|-----------|
-| H1 | `ansi_shadow` | large | `═══` |
-| H2 | `ansi_shadow` | large | `───` |
+| H1 | `chunky` *(default)* or `block` | medium/tall | `═══` |
+| H2 | `chunky` *(default)* or `block` | medium/tall | `───` |
 | H3 | `standard` | compact | `╌╌╌` |
 | H4–H6 | `####` prefix | 1 line | — |
+
+Use `g:vim_markdown_ascii_font` to choose the Figlet font for H1/H2 when `g:vim_markdown_header_style` is `ascii`.
 
 If a heading is too long to fit the ASCII art in the terminal width, or if `rich-pyfiglet` is not installed, headings fall back to the **boxed** style automatically.
 
@@ -130,8 +132,12 @@ let g:vim_markdown_previewer = 'glow'        " terminal pager
 let g:vim_markdown_previewer = 'pandoc'      " browser (HTML)
 
 " Header style for the native backend (default: 'ascii')
-let g:vim_markdown_header_style = 'ascii'    " ASCII art banners via rich-pyfiglet
+let g:vim_markdown_header_style = 'ascii'    " block-style banners via rich-pyfiglet
 let g:vim_markdown_header_style = 'boxed'    " box-drawing characters
+
+" ASCII font for H1/H2 when header style is 'ascii' (default: 'chunky')
+let g:vim_markdown_ascii_font = 'chunky'     " compact blocky banners
+let g:vim_markdown_ascii_font = 'block'      " taller block banners
 
 " Toggle keymap (default: <leader>mp)
 let g:vim_markdown_preview_key = '<F5>'
