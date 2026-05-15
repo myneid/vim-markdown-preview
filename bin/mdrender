@@ -44,15 +44,15 @@ _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 def strip_ansi(s):
     return _ANSI_RE.sub("", s)
 
-# ── ASCII art heading fonts and gradients (H1 biggest → H3 smallest) ─────────
+# ── ASCII art heading fonts and gradients (compact defaults) ─────────────────
 
-ASCII_FONTS = {1: "standard", 2: "small", 3: "mini"}
+# Keep FIGlet headings intentionally compact to avoid oversized titles.
+ASCII_FONTS = {1: "small", 2: "mini"}
 
 # Each level: (start_rgb, end_rgb)
 ASCII_GRADIENTS = {
     1: ((130, 190, 255), ( 80, 140, 255)),  # sky blue  → deep blue
     2: (( 80, 210, 160), ( 40, 180, 120)),  # mint      → teal
-    3: ((255, 200,  80), (255, 150,  40)),  # amber     → orange
 }
 
 def _rgb_hex(rgb):
