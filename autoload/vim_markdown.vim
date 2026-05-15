@@ -172,11 +172,16 @@ function! s:open_terminal(cmd) abort
     execute 'nnoremap <buffer> <silent> ' . l:key . ' :MarkdownPreviewStop<CR>'
     startinsert
   else
-    let s:preview_bufnr = term_start(a:cmd, {
+    let s:preview_job = term_start(a:cmd, {
           \ 'curwin':    1,
           \ 'norestore': 1,
           \ 'exit_cb':   function('s:on_exit_vim'),
           \ })
+    if exists('*term_getbufnr')
+      let s:preview_bufnr = term_getbufnr(s:preview_job)
+    else
+      let s:preview_bufnr = bufnr('%')
+    endif
     call setbufvar(s:preview_bufnr, '&buflisted', 0)
   endif
 endfunction
